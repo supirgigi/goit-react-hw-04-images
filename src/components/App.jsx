@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import { useState, useEffect } from 'react';
 import { ToastContainer, toast } from 'react-toastify';
 import Searchbar from 'components/Searchbar';
 import ImageGallery from 'components/ImageGallery';
@@ -9,103 +9,82 @@ import { Container } from './App.styled';
 
 import 'react-toastify/dist/ReactToastify.css';
 
-class App extends Component {
-  state = {
-    query: '',
-    page: 1,
-    images: [],
-    status: 'idle',
-  };
+const App = () => {
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [images, setImages] = useState([]);
+  const [status, setStatus] = useState('idle');
 
-  componentDidUpdate(prevProps, prevState) {
-    const { page, query } = this.state;
-    const prevPage = prevState.page;
-    const prevQuery = prevState.query;
-
-    if (query !== prevQuery || page !== prevPage) {
-      this.handleRequest();
+  useEffect(() => {
+    if (query === '') {
+      return;
     }
-  }
 
-  handleFormSubmit = query => {
-    this.setState({ query, page: 1, images: [] });
-  };
+    const handleRequest = async () => {
+      try {
+        setStatus('pending');
 
-  loadMore = () => {
-    this.setState(prevState => ({
-      page: prevState.page + 1,
-    }));
-  };
+        const { hits, totalHits } = await fetchImages(query, page);
 
-  async handleRequest() {
-    try {
-      this.setState({
-        status: 'pending',
-      });
-
-      const { page, query } = this.state;
-      const { hits, totalHits } = await fetchImages(query, page);
-
-      if (totalHits === 0) {
-        this.setState({ status: 'rejected' });
-        return toast.error(
-          'Sorry, there are no images matching your search query. Please try again.'
-        );
-      }
-
-      if (page === 1) {
-        toast.success(`Found ${totalHits} images`);
-      }
-
-      if (totalHits < 12 * page) {
-        this.setState({
-          status: 'idle',
-        });
-
-        if (page > 1) {
-          toast.info("You've reached the end of search results");
+        if (totalHits === 0) {
+          setStatus('rejected');
+          return toast.error(
+            'Sorry, there are no images matching your search query. Please try again.'
+          );
         }
-      } else {
-        this.setState({
-          status: 'resolved',
-        });
+
+        if (page === 1) {
+          toast.success(`Found ${totalHits} images`);
+        }
+
+        if (totalHits < 12 * page) {
+          setStatus('idle');
+
+          if (page > 1) {
+            toast.info("You've reached the end of search results");
+          }
+        } else {
+          setStatus('resolved');
+        }
+
+        setImages(prevImages => [...prevImages, ...hits]);
+      } catch (error) {
+        setStatus('rejected');
+
+        toast.error(error.message);
       }
+    };
 
-      this.setState(prevState => ({
-        images: [...prevState.images, ...hits],
-      }));
-    } catch (error) {
-      this.setState({
-        status: 'rejected',
-      });
+    handleRequest();
+  }, [query, page]);
 
-      toast.error(error.message);
-    }
-  }
+  const handleFormSubmit = query => {
+    setQuery(query);
+    setPage(1);
+    setImages([]);
+  };
 
-  render() {
-    const { images, status } = this.state;
+  const loadMore = () => {
+    setPage(prevPage => prevPage + 1);
+  };
 
-    return (
-      <Container>
-        <Searchbar onSubmit={this.handleFormSubmit} />
-        <ImageGallery images={images} />
-        {status === 'pending' && <Loader />}
-        {status === 'resolved' && (
-          <Button text="Load more" onClick={this.loadMore} />
-        )}
-        <ToastContainer
-          position="top-right"
-          autoClose={2000}
-          hideProgressBar={false}
-          newestOnTop={true}
-          closeOnClick
-          pauseOnHover={false}
-          theme="light"
-        />
-      </Container>
-    );
-  }
-}
+  return (
+    <Container>
+      <Searchbar onSubmit={handleFormSubmit} />
+      <ImageGallery images={images} />
+      {status === 'pending' && <Loader />}
+      {status === 'resolved' && <Button text="Load more" onClick={loadMore} />}
+      <ToastContainer
+        position="top-right"
+        autoClose={2000}
+        hideProgressBar={false}
+        newestOnTop={true}
+        closeOnClick
+        pauseOnHover={false}
+        theme="light"
+      />
+    </Container>
+  );
+};
 
 export default App;
